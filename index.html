@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status Link</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --chalk: #e9eef2;
+    --ink: #1b2733;
+    --mute: #5d6b78;
+    --line: #c5d0d9;
+    --go: #2e9e6b;
+    --wait: #e8a317;
+    --stop: #d6453d;
+    --info: #3b6fd8;
+    --idle: #1b2733;
+    --bg: var(--chalk);
+    --fg: var(--ink);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    transition: background-color .35s ease, color .35s ease;
+    padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+  }
+  main { max-width: 640px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; padding: 32px 0; }
+  h1 { font-size: clamp(2.4rem, 9vw, 4rem); line-height: 1; margin: 0 0 12px; font-weight: 800; letter-spacing: -0.03em; }
+  h2 { font-size: 1.25rem; margin: 0 0 6px; font-weight: 600; }
+  p { margin: 0 0 16px; line-height: 1.5; max-width: 52ch; }
+  .mute { color: var(--mute); }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* Landing */
+  .choices { display: grid; gap: 14px; margin-top: 28px; }
+  @media (min-width: 560px) { .choices { grid-template-columns: 1fr 1fr; } }
+  .choice {
+    text-align: left; border: 2px solid var(--ink); background: transparent;
+    border-radius: 18px; padding: 22px 20px; min-height: 150px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: background-color .15s, color .15s;
+  }
+  .choice:hover { background: var(--ink); color: var(--chalk); }
+  .choice strong { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
+  .choice span { font-size: .95rem; opacity: .8; }
+
+  /* Receiver */
+  body.receiver { --bg: var(--idle); --fg: #f3f6f8; }
+  body.receiver[data-tone="go"]   { --bg: var(--go); }
+  body.receiver[data-tone="wait"] { --bg: var(--wait); --fg: #1b2733; }
+  body.receiver[data-tone="stop"] { --bg: var(--stop); }
+  body.receiver[data-tone="info"] { --bg: var(--info); }
+  .rx-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: .95rem; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1.5px solid currentColor; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; opacity: .5; }
+  .pill.live .dot { opacity: 1; }
+  .rx-status {
+    flex: 1; display: flex; flex-direction: column; justify-content: center;
+    padding: 24px 0;
+  }
+  .rx-status .text {
+    font-size: clamp(3rem, 15vw, 8rem); font-weight: 800; line-height: .95;
+    letter-spacing: -0.04em; overflow-wrap: anywhere; margin: 0 0 18px;
+  }
+  .rx-status .meta { opacity: .75; margin: 0; }
+  .code-box { border: 2px dashed currentColor; border-radius: 18px; padding: 18px 20px; margin-bottom: 14px; }
+  .code {
+    font-size: clamp(2.6rem, 14vw, 4.5rem); font-weight: 800; letter-spacing: .14em;
+    font-variant-numeric: tabular-nums; margin: 4px 0 0;
+  }
+  .linkrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .ghost { background: transparent; border: 1.5px solid currentColor; border-radius: 12px; padding: 10px 16px; }
+  .ghost:hover { background: rgba(255,255,255,.15); }
+  .back { background: none; border: 0; padding: 0; text-decoration: underline; opacity: .8; }
+
+  /* Controller */
+  .field { display: flex; gap: 10px; margin: 8px 0 20px; }
+  input[type=text] {
+    flex: 1; min-width: 0; background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  }
+  input[type=text]:focus { border-color: var(--ink); }
+  #code-input { text-transform: uppercase; letter-spacing: .2em; font-weight: 600; }
+  .primary { background: var(--ink); color: var(--chalk); border: 0; border-radius: 12px; padding: 14px 22px; font-weight: 600; }
+  .primary:disabled { opacity: .45; cursor: not-allowed; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0 24px; }
+  .st {
+    border: 0; border-radius: 18px; padding: 26px 16px; font-weight: 800; font-size: 1.35rem;
+    letter-spacing: -0.01em; color: #fff; min-height: 96px; text-align: left;
+    transition: transform .08s ease, box-shadow .15s;
+  }
+  .st:active { transform: scale(.97); }
+  .st[data-tone="go"] { background: var(--go); }
+  .st[data-tone="wait"] { background: var(--wait); color: var(--ink); }
+  .st[data-tone="stop"] { background: var(--stop); }
+  .st[data-tone="info"] { background: var(--info); }
+  .st.sent { box-shadow: 0 0 0 4px var(--chalk), 0 0 0 7px var(--ink); }
+  .msg { min-height: 1.5em; margin: 0 0 8px; font-weight: 600; }
+  .msg.err { color: var(--stop); }
+  .conn { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- Landing -->
+  <section id="landing">
+    <h1>Status Link</h1>
+    <p class="mute">Pick a side. Open the receiver on one screen and the controller on another, then send a status from one to the other.</p>
+    <div class="choices">
+      <button class="choice" id="pick-receiver">
+        <strong>Receiver</strong>
+        <span>Shows the status. Gets a pairing code.</span>
+      </button>
+      <button class="choice" id="pick-controller">
+        <strong>Controller</strong>
+        <span>Sends the status. Needs the receiver's code.</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Receiver -->
+  <section id="receiver" hidden style="flex:1; display:none; flex-direction:column;">
+    <div class="rx-top">
+      <button class="back" id="rx-back">Leave</button>
+      <span class="pill" id="rx-pill"><span class="dot"></span><span id="rx-pill-text">Starting…</span></span>
+    </div>
+
+    <div class="rx-status" id="rx-waiting">
+      <div class="code-box">
+        <div>Pairing code</div>
+        <div class="code" id="rx-code">····</div>
+      </div>
+      <p class="meta">Enter this code on the controller, or open the controller link directly.</p>
+      <div class="linkrow">
+        <button class="ghost" id="rx-copy">Copy controller link</button>
+        <span id="rx-copied" class="mute" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div class="rx-status" id="rx-live" hidden>
+      <p class="text" id="rx-text" aria-live="polite">No status yet</p>
+      <p class="meta" id="rx-meta"></p>
+    </div>
+  </section>
+
+  <!-- Controller -->
+  <section id="controller" hidden>
+    <div class="conn">
+      <button class="back" id="ct-back">Leave</button>
+      <span id="ct-state" class="mute">Not connected</span>
+    </div>
+
+    <div id="ct-connect">
+      <h2>Connect to a receiver</h2>
+      <p class="mute">Type the code shown on the receiver screen.</p>
+      <div class="field">
+        <input type="text" id="code-input" maxlength="4" placeholder="ABCD" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Pairing code">
+        <button class="primary" id="ct-connect-btn">Connect</button>
+      </div>
+      <p class="msg" id="ct-connect-msg" aria-live="polite"></p>
+    </div>
+
+    <div id="ct-panel" hidden>
+      <h2>Send a status</h2>
+      <div class="grid">
+        <button class="st" data-tone="go">Available</button>
+        <button class="st" data-tone="wait">Busy</button>
+        <button class="st" data-tone="stop">Do not disturb</button>
+        <button class="st" data-tone="info">Be right back</button>
+      </div>
+      <h2>Or write your own</h2>
+      <div class="field">
+        <input type="text" id="custom-input" maxlength="60" placeholder="e.g. In a meeting until 3" aria-label="Custom status">
+        <button class="primary" id="custom-send">Send</button>
+      </div>
+      <p class="msg" id="ct-msg" aria-live="polite"></p>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var PREFIX = "statuslink-v1-";
+  var ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no look-alike characters
+  var $ = function (id) { return document.getElementById(id); };
+
+  var peer = null;
+  var conn = null;
+
+  function randomCode() {
+    var out = "";
+    var buf = new Uint32Array(4);
+    crypto.getRandomValues(buf);
+    for (var i = 0; i < 4; i++) out += ALPHABET[buf[i] % ALPHABET.length];
+    return out;
+  }
+
+  function show(which) {
+    $("landing").hidden = which !== "landing";
+    $("controller").hidden = which !== "controller";
+    var rx = $("receiver");
+    rx.hidden = which !== "receiver";
+    rx.style.display = which === "receiver" ? "flex" : "none";
+    document.body.classList.toggle("receiver", which === "receiver");
+    if (which !== "receiver") document.body.removeAttribute("data-tone");
+  }
+
+  function teardown() {
+    if (conn) { try { conn.close(); } catch (e) {} conn = null; }
+    if (peer) { try { peer.destroy(); } catch (e) {} peer = null; }
+  }
+
+  function leave() {
+    teardown();
+    history.replaceState(null, "", location.pathname);
+    show("landing");
+  }
+
+  /* ---------------- Receiver ---------------- */
+
+  function startReceiver(attempt) {
+    attempt = attempt || 0;
+    show("receiver");
+    $("rx-waiting").hidden = false;
+    $("rx-live").hidden = true;
+    setPill(false, "Starting…");
+
+    var code = randomCode();
+    teardown();
+    peer = new Peer(PREFIX + code);
+
+    peer.on("open", function () {
+      $("rx-code").textContent = code;
+      setPill(false, "Waiting for controller");
+      $("rx-copy").dataset.link = location.origin + location.pathname + "#c=" + code;
+    });
+
+    peer.on("connection", function (c) {
+      if (conn) { try { conn.close(); } catch (e) {} }
+      conn = c;
+      c.on("open", function () {
+        setPill(true, "Controller connected");
+        $("rx-waiting").hidden = true;
+        $("rx-live").hidden = false;
+        if (!$("rx-text").dataset.has) {
+          $("rx-text").textContent = "No status yet";
+          $("rx-meta").textContent = "Waiting for the controller to send one.";
+        }
+      });
+      c.on("data", function (d) {
+        if (!d || d.type !== "status") return;
+        var text = String(d.text || "").slice(0, 60);
+        var tone = ["go", "wait", "stop", "info"].indexOf(d.tone) >= 0 ? d.tone : "";
+        $("rx-text").textContent = text;
+        $("rx-text").dataset.has = "1";
+        $("rx-meta").textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+        if (tone) document.body.setAttribute("data-tone", tone);
+        else document.body.removeAttribute("data-tone");
+        try { c.send({ type: "ack", text: text }); } catch (e) {}
+      });
+      c.on("close", function () {
+        if (conn === c) {
+          conn = null;
+          setPill(false, "Controller left");
+          if (!$("rx-text").dataset.has) {
+            $("rx-waiting").hidden = false;
+            $("rx-live").hidden = true;
+          }
+        }
+      });
+    });
+
+    peer.on("error", function (err) {
+      if (err && err.type === "unavailable-id" && attempt < 5) {
+        startReceiver(attempt + 1); // code already taken, try another
+      } else {
+        setPill(false, "Connection problem. Leave and try again.");
+      }
+    });
+
+    peer.on("disconnected", function () {
+      // lost the pairing server; existing connection may still work
+      if (peer && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
+    });
+  }
+
+  function setPill(live, text) {
+    $("rx-pill").classList.toggle("live", live);
+    $("rx-pill-text").textContent = text;
+  }
+
+  $("rx-copy").addEventListener("click", function () {
+    var link = this.dataset.link;
+    if (!link) return;
+    var done = function () {
+      $("rx-copied").textContent = "Copied";
+      setTimeout(function () { $("rx-copied").textContent = ""; }, 2000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(done, function () { $("rx-copied").textContent = link; });
+    } else {
+      $("rx-copied").textContent = link;
+    }
+  });
+
+  /* ---------------- Controller ---------------- */
+
+  function startController(prefill) {
+    show("controller");
+    $("ct-connect").hidden = false;
+    $("ct-panel").hidden = true;
+    $("ct-state").textContent = "Not connected";
+    $("ct-connect-msg").textContent = "";
+    $("ct-connect-msg").className = "msg";
+    $("code-input").value = prefill || "";
+    $("ct-connect-btn").disabled = false;
+    if (prefill && prefill.length === 4) connect();
+    else $("code-input").focus();
+  }
+
+  function connectError(text) {
+    var m = $("ct-connect-msg");
+    m.textContent = text;
+    m.className = "msg err";
+    $("ct-connect-btn").disabled = false;
+    teardown();
+  }
+
+  function connect() {
+    var code = $("code-input").value.trim().toUpperCase();
+    if (code.length !== 4) { connectError("Enter the 4-character code from the receiver."); return; }
+
+    teardown();
+    $("ct-connect-btn").disabled = true;
+    $("ct-connect-msg").className = "msg";
+    $("ct-connect-msg").textContent = "Connecting…";
+    $("ct-state").textContent = "Connecting…";
+
+    var timer = setTimeout(function () {
+      connectError("No answer. Check the code and that the receiver is open.");
+      $("ct-state").textContent = "Not connected";
+    }, 12000);
+
+    peer = new Peer();
+    peer.on("open", function () {
+      conn = peer.connect(PREFIX + code, { reliable: true });
+      conn.on("open", function () {
+        clearTimeout(timer);
+        $("ct-connect").hidden = true;
+        $("ct-panel").hidden = false;
+        $("ct-state").textContent = "Connected to " + code;
+        $("ct-msg").textContent = "";
+        $("ct-msg").className = "msg";
+      });
+      conn.on("data", function (d) {
+        if (d && d.type === "ack") {
+          $("ct-msg").className = "msg";
+          $("ct-msg").textContent = "Delivered: " + d.text;
+        }
+      });
+      conn.on("close", function () {
+        clearTimeout(timer);
+        $("ct-connect").hidden = false;
+        $("ct-panel").hidden = true;
+        $("ct-state").textContent = "Not connected";
+        connectError("The receiver closed the connection.");
+      });
+    });
+    peer.on("error", function (err) {
+      clearTimeout(timer);
+      $("ct-state").textContent = "Not connected";
+      if (err && err.type === "peer-unavailable") connectError("No receiver with that code. Check the code and try again.");
+      else connectError("Connection problem. Try again.");
+    });
+  }
+
+  function send(text, tone) {
+    text = (text || "").trim();
+    var m = $("ct-msg");
+    if (!text) { m.className = "msg err"; m.textContent = "Write a status first."; return false; }
+    if (!conn || !conn.open) { m.className = "msg err"; m.textContent = "Not connected to a receiver."; return false; }
+    conn.send({ type: "status", text: text, tone: tone || "" });
+    m.className = "msg";
+    m.textContent = "Sending…";
+    return true;
+  }
+
+  $("ct-connect-btn").addEventListener("click", connect);
+  $("code-input").addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
+
+  document.querySelectorAll(".st").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (send(b.textContent, b.dataset.tone)) {
+        document.querySelectorAll(".st").forEach(function (x) { x.classList.remove("sent"); });
+        b.classList.add("sent");
+      }
+    });
+  });
+
+  $("custom-send").addEventListener("click", function () {
+    if (send($("custom-input").value, "")) {
+      document.querySelectorAll(".st").forEach(function (x) { x.classList.remove("sent"); });
+    }
+  });
+  $("custom-input").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") $("custom-send").click();
+  });
+
+  /* ---------------- Wiring ---------------- */
+
+  $("pick-receiver").addEventListener("click", function () { startReceiver(); });
+  $("pick-controller").addEventListener("click", function () { startController(""); });
+  $("rx-back").addEventListener("click", leave);
+  $("ct-back").addEventListener("click", leave);
+
+  // Opening ".../#c=ABCD" jumps straight into the controller with the code filled in
+  var m = /[#&]c=([A-Za-z0-9]{4})/.exec(location.hash);
+  if (m) startController(m[1].toUpperCase());
+  else show("landing");
+})();
+</script>
+</body>
+</html>
